@@ -5,30 +5,52 @@ use serde_json::value::Value;
 use self::reqwest::header::ContentType;
 use self::reqwest::Url;
 
-pub const HOST_URL: &'static str = "https://api.telegram.org/";
+pub const HOST_URL: &str = "https://api.telegram.org/";
 
-
-#[derive(Deserialize)]
-pub struct Update {
-    update_id: usize,
+#[derive(Deserialize, Debug)]
+pub struct User {
+    id: u64,
+    is_bot: bool,
+    first_name: String,
+    // TODO: add optional fields
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
+pub struct Message {
+    message_id: u64,
+    from: User,
+    text: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Update {
+    update_id: usize,
+    message: Message,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct Response {
     ok: bool,
     result: Vec<Update>,
 }
 
-
+#[derive(Debug)]
 pub struct TelegramRequester {
     host: String,
     token: String,
     last_update_id: usize,
 }
 
-
 impl TelegramRequester {
-    pub fn new(host: &str, token: &str) -> Self {
+    pub fn new(token: &str, last_update_id: usize) -> Self {
+        TelegramRequester {
+            host: String::from(HOST_URL),
+            token: String::from(token),
+            last_update_id,
+        }
+    }
+
+    fn new_with_host(host: &str, token: &str) -> Self {
         TelegramRequester {
             host: String::from(host),
             token: String::from(token),
@@ -86,9 +108,10 @@ mod test {
 
     #[test]
     fn initialzie_requester() {
-        let requester = TelegramRequester::new("host", TOKEN);
-        assert!(requester.host == String::from("host"));
+        let requester = TelegramRequester::new(TOKEN, 42);
+        assert!(requester.host == String::from(HOST_URL));
         assert!(requester.token == TOKEN);
+        assert!(requester.last_update_id == 42)
     }
 
     #[test]
@@ -100,21 +123,21 @@ mod test {
             .with_body("{\"ok\":true,\"result\":[]}")
             .expect(1)
             .create();
-        let requester = TelegramRequester::new(SERVER_URL, TOKEN);
+        let requester = TelegramRequester::new_with_host(SERVER_URL, TOKEN);
         let _ = requester.get_updates();
         mock.assert();
     }
 
     #[test]
     fn construct_url_for_result() {
-        let requester = TelegramRequester::new("https://host", "token");
+        let requester = TelegramRequester::new_with_host("https://host", "token");
         let result = requester.construct_url("getUpdates");
         assert!(result == String::from("https://host/token/getUpdates"));
     }
 
     #[test]
     fn request_api_method_makes_http_request() {
-        let requester = TelegramRequester::new(SERVER_URL, "secret");
+        let requester = TelegramRequester::new_with_host(SERVER_URL, "secret");
         let mock = mock("POST", "/secret/method")
             .with_status(200)
             .match_header("content-type", "application/json")

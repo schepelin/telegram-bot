@@ -3,7 +3,7 @@ extern crate reqwest;
 
 use serde_json::value::Value;
 use self::reqwest::header::ContentType;
-use self::reqwest::Url;
+use self::reqwest::{Url, StatusCode};
 
 pub const HOST_URL: &str = "https://api.telegram.org/";
 
@@ -16,10 +16,18 @@ pub struct User {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct Chat {
+    id: u64,
+    #[serde(rename = "type")]
+    chat_type: String,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct Message {
     message_id: u64,
     from: User,
     text: String,
+    chat: Chat,
 }
 
 #[derive(Deserialize, Debug)]
@@ -95,6 +103,21 @@ impl TelegramRequester {
             Err(_) => panic!("Request failed"),
         }
     }
+
+    pub fn send_message(&self, chat_id: u64, text: &String) {
+        let params = json!({"chat_id": chat_id, "text": text});
+        let result = self.request_api_method("sendMessage", Some(&params));
+
+        match result {
+            Ok(resp) => {
+                match resp.status() {
+                    StatusCode::Ok => (),
+                    status => panic!("Error status code received {}", status),
+                }
+            },
+            Err(e) => panic!("Could not send message Error: {}", e)
+        };
+    }
 }
 
 #[cfg(test)]
@@ -149,6 +172,21 @@ mod test {
             "method",
             Some(&params)
         ).unwrap();
+        mock.assert();
+    }
+
+    #[test]
+    fn send_message_makes_request() {
+        let requester = TelegramRequester::new_with_host(SERVER_URL, "secret");
+        let mock = mock("POST", "/secret/sendMessage")
+            .with_status(200)
+            .match_header("content-type", "application/json")
+            .match_body(r#"{"chat_id":42,"text":"test"}"#)
+            .with_body("{\"ok\":true,\"result\":{}}")
+            .expect(1)
+            .create();
+
+        requester.send_message(42, &String::from("test"));
         mock.assert();
     }
 }

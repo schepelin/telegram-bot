@@ -1,3 +1,5 @@
+
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
@@ -6,6 +8,7 @@ extern crate serde_json;
 use std::env;
 
 mod requests;
+mod handlers;
 
 const TOKEN_ENV: &str = "TELEGRAM_API_TOKEN";
 
@@ -24,5 +27,6 @@ fn main() {
 // TODO:
 // + make API request for updates
 // - reply to the message
+// - add timeout to get_updates and rum long polling
 // - extract link from message text
 // - start downloading file from a link

@@ -7,12 +7,14 @@ use self::reqwest::{Url, StatusCode};
 
 pub const HOST_URL: &str = "https://api.telegram.org/";
 
+// TODO:
+// decide how to manage last_update_id and make it work
+
 #[derive(Deserialize, Debug)]
 pub struct User {
     id: u64,
     is_bot: bool,
     first_name: String,
-    // TODO: add optional fields
 }
 
 #[derive(Deserialize, Debug)]
@@ -32,14 +34,51 @@ pub struct Message {
 
 #[derive(Deserialize, Debug)]
 pub struct Update {
-    update_id: usize,
+    update_id: u64,
     message: Message,
+}
+
+impl Update {
+    #[cfg(test)]
+    pub fn for_testing (
+        update_id: u64, user_id: u64, chat_id: u64,
+        message_id: u64, text: &String
+    ) -> Self {
+        let user = User {
+            id: user_id,
+            is_bot: false,
+            first_name: String::from("Test user"),
+        };
+        let chat = Chat {
+            id: chat_id,
+            chat_type: String::from("private"),
+        };
+        let message = Message {
+            message_id,
+            from: user,
+            chat,
+            text: text.clone(),
+        };
+        Update {
+            update_id,
+            message,
+        }
+    }
+    pub fn get_chat_message(&self) -> (u64, &String) {
+        (self.message.chat.id, &self.message.text)
+    }
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Response {
     ok: bool,
     result: Vec<Update>,
+}
+
+impl Response {
+    pub fn get_updates(&self) -> &Vec<Update> {
+        &self.result
+    }
 }
 
 #[derive(Debug)]
@@ -58,6 +97,7 @@ impl TelegramRequester {
         }
     }
 
+    #[cfg(test)]
     fn new_with_host(host: &str, token: &str) -> Self {
         TelegramRequester {
             host: String::from(host),

@@ -1,6 +1,8 @@
 
 extern crate reqwest;
 
+use std::cmp;
+use std::cell::Cell;
 use serde_json::value::Value;
 use self::reqwest::header::ContentType;
 use self::reqwest::{Url, StatusCode};
@@ -79,22 +81,28 @@ impl Response {
     pub fn get_updates(&self) -> &Vec<Update> {
         &self.result
     }
+    pub fn get_last_update_id(&self) -> u64 {
+        self.result.iter().fold(0, |max, next| cmp::max(max, next.update_id))
+    }
 }
 
 #[derive(Debug)]
 pub struct TelegramRequester {
     host: String,
     token: String,
-    last_update_id: usize,
+    last_update_id: Cell<u64>,
 }
 
 impl TelegramRequester {
-    pub fn new(token: &str, last_update_id: usize) -> Self {
+    pub fn new(token: &str, last_update_id: u64) -> Self {
         TelegramRequester {
             host: String::from(HOST_URL),
             token: String::from(token),
-            last_update_id,
+            last_update_id: Cell::new(last_update_id),
         }
+    }
+    fn revise_last_update_id(&self, update_id: u64) {
+        self.last_update_id.set(update_id);
     }
 
     #[cfg(test)]
@@ -102,7 +110,7 @@ impl TelegramRequester {
         TelegramRequester {
             host: String::from(host),
             token: String::from(token),
-            last_update_id: 0,
+            last_update_id: Cell::new(0),
         }
     }
 
@@ -129,14 +137,20 @@ impl TelegramRequester {
         .send()
     }
 
-    pub fn get_updates(&self) -> Response {
-        let params = json!({"offset": self.last_update_id + 1});
+    pub fn get_updates(&self, timeout: u8) -> Response {
+        let params = json!({
+            "offset": self.last_update_id.get() + 1,
+            "timeout": timeout,
+        });
         let result = self.request_api_method("getUpdates", Some(&params));
 
         match result {
             Ok(mut resp) => {
-                match resp.json() {
-                    Ok(data) => data,
+                match resp.json::<Response>() {
+                    Ok(data) => {
+                        self.revise_last_update_id(data.get_last_update_id());
+                        data
+                    },
                     Err(_) => panic!("JSON parse error"),
                 }
             },
@@ -174,7 +188,7 @@ mod test {
         let requester = TelegramRequester::new(TOKEN, 42);
         assert!(requester.host == String::from(HOST_URL));
         assert!(requester.token == TOKEN);
-        assert!(requester.last_update_id == 42)
+        assert!(requester.last_update_id.get() == 42);
     }
 
     #[test]
@@ -182,12 +196,12 @@ mod test {
         let mock = mock("POST", "/bot100500:topsecrethash/getUpdates")
             .with_status(200)
             .match_header("content-type", "application/json")
-            .match_body("{\"offset\":1}")
+            .match_body("{\"offset\":1,\"timeout\":10}")
             .with_body("{\"ok\":true,\"result\":[]}")
             .expect(1)
             .create();
         let requester = TelegramRequester::new_with_host(SERVER_URL, TOKEN);
-        let _ = requester.get_updates();
+        let _ = requester.get_updates(10);
         mock.assert();
     }
 
@@ -228,5 +242,16 @@ mod test {
 
         requester.send_message(42, &String::from("test"));
         mock.assert();
+    }
+
+    #[test]
+    fn extract_latest_update_id() {
+        let upd1 = Update::for_testing(100500, 42, 42, 42, &String::from("foobar"));
+        let upd2 = Update::for_testing(100501, 42, 42, 42, &String::from("foobar"));
+        let resp = Response {
+            ok: true,
+            result: vec![upd1, upd2],
+        };
+        assert!(resp.get_last_update_id() == 100501)
     }
 }

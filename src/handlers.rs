@@ -42,11 +42,4 @@ mod test {
         let ping_text = String::from("ping");
         assert!(Reply::new(&ping_text) == Reply::Alive)
     }
-
-    #[test]
-    fn test_update_handler_replies_to_ping() {
-        let ping_text = String::from("ping");
-        let update = Update::for_testing(42, 43, 44, 45, &ping_text);
-        // assert!(parse_update(&update) == Reply::Alive)
-    }
 }

@@ -9,8 +9,6 @@ use self::reqwest::{Url, StatusCode};
 
 pub const HOST_URL: &str = "https://api.telegram.org/";
 
-// TODO:
-// decide how to manage last_update_id and make it work
 
 #[derive(Deserialize, Debug)]
 pub struct User {
@@ -27,11 +25,20 @@ pub struct Chat {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct MessageEntity {
+    #[serde(rename = "type")]
+    entity_type: String,
+    offset: u64,
+    length: u64,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct Message {
     message_id: u64,
     from: User,
     text: String,
     chat: Chat,
+    entities: Vec<MessageEntity>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -60,6 +67,7 @@ impl Update {
             from: user,
             chat,
             text: text.clone(),
+            entities: vec![],
         };
         Update {
             update_id,

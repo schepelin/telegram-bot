@@ -1,25 +1,25 @@
-
-
 use requests::{TelegramRequester, Update};
 
  #[derive(PartialEq)]
 pub enum Reply {
     Alive,
-
-    UnknownMessage,
+    UnknownCommand,
 }
+
+// Separate BotCommand entity and BotAction
+// Bot command produces reply and starts an action
 
 impl Reply {
     fn new(message: &String) -> Self {
         match message.as_ref() {
             "ping" => Reply::Alive,
-            _ => Reply::UnknownMessage,
+            _ => Reply::UnknownCommand,
         }
     }
     fn to_string(&self) -> String {
         match *self {
             Reply::Alive => String::from("I'm alive"),
-            Reply::UnknownMessage => String::from("Unknown command"),
+            Reply::UnknownCommand => String::from("Unknown command"),
         }
     }
 }
@@ -30,7 +30,7 @@ pub fn update_handler(requester: &TelegramRequester, update: &Update) {
 
     let reply = Reply::new(&message);
     requester.send_message(chat_id, &reply.to_string())
-    // run background job in different thread
+    // run background job in a thread
 }
 
 #[cfg(test)]
